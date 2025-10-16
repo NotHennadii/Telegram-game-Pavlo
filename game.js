@@ -80,17 +80,17 @@ let gameState = {
     czHP: 100
 };
 
-// Позиции персонажей
+// Позиции персонажей (ниже и больше)
 let pavloPos = {
     x: 80,
-    y: canvas.height - 100,
-    size: 104
+    y: canvas.height - 60,
+    size: 114
 };
 
 let czPos = {
     x: canvas.width - 80,
-    y: canvas.height - 100,
-    size: 104
+    y: canvas.height - 60,
+    size: 114
 };
 
 // Объекты игры
@@ -126,7 +126,7 @@ class Particle {
     }
 }
 
-// Класс токена
+// Класс токена (меньше размер)
 class Token {
     constructor(lane, type, isTrap = false) {
         this.lane = lane;
@@ -134,7 +134,7 @@ class Token {
         this.isTrap = isTrap;
         this.x = (canvas.width / LANES) * lane + (canvas.width / LANES / 2);
         this.y = -50;
-        this.radius = 30;
+        this.radius = 27; // Уменьшено на 10%
         this.price = TOKEN_PRICES[type];
         this.speed = 2 * gameState.speed;
         this.caught = false;
@@ -251,7 +251,7 @@ function drawBackground() {
     }
 }
 
-// Функция для удаления белого фона (ОСЛАБЛЕННАЯ)
+// Функция для удаления белого фона (средний порог)
 function removeWhiteBackground(image, width, height) {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = width;
@@ -269,8 +269,8 @@ function removeWhiteBackground(image, width, height) {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Более высокий порог - удаляет только очень белые пиксели
-            if (r > 250 && g > 250 && b > 250) {
+            // Средний порог - баланс между удалением белого и сохранением деталей
+            if (r > 245 && g > 245 && b > 245) {
                 data[i + 3] = 0;
             }
         }
@@ -286,7 +286,7 @@ function removeWhiteBackground(image, width, height) {
 // Отрисовка HP-бара над персонажем
 function drawHealthBarAbove(x, y, width, hp, name) {
     const height = 20;
-    const barY = y - 80; // Над персонажем
+    const barY = y - 80;
     
     // Имя
     ctx.fillStyle = '#FFD700';
@@ -322,14 +322,14 @@ function drawHealthBarAbove(x, y, width, hp, name) {
     ctx.fillText(`${Math.floor(hp)}%`, x, barY + 14);
 }
 
-// Отрисовка комбо счетчика
+// Отрисовка комбо счетчика (меньше шрифт, строго по центру)
 function drawCombo() {
     if (gameState.combo > 1) {
         const centerX = canvas.width / 2;
-        const centerY = 100;
+        const centerY = canvas.height / 2;
         
         // Эффект пульсации
-        const scale = 1 + Math.sin(Date.now() / 100) * 0.1;
+        const scale = 1 + Math.sin(Date.now() / 100) * 0.08;
         
         ctx.save();
         ctx.translate(centerX, centerY);
@@ -337,8 +337,9 @@ function drawCombo() {
         
         // Текст COMBO
         ctx.fillStyle = '#FF0000';
-        ctx.font = 'bold 40px Arial';
+        ctx.font = 'bold 32px Arial';
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.strokeStyle = '#FFD700';
         ctx.lineWidth = 3;
         ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
@@ -477,12 +478,12 @@ function gameLoop() {
         token.draw();
 
         // Если токен упал вниз
-        if (token.y >= canvas.height - 100 && !token.caught) {
+        if (token.y >= canvas.height - 120 && !token.caught) {
             token.caught = true;
             
             if (token.isTrap) {
-                // Ловушка упала - CZ получает урон
-                gameState.czHP = Math.max(0, gameState.czHP - 5);
+                // Ловушка упала - просто исчезает, НЕ дает урона CZ
+                // Ничего не происходит
             } else {
                 // Обычный токен упал - CZ получает деньги, PAVLO урон
                 gameState.czMoney += token.price;
@@ -519,7 +520,7 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Обработка кликов
+// Обработка кликов (ИСПРАВЛЕННАЯ ЛОГИКА)
 function handleClick(e) {
     if (gameState.gameOver || gameState.paused) return;
     
@@ -534,7 +535,7 @@ function handleClick(e) {
             token.caught = true;
             
             if (token.isTrap) {
-                // Кликнули на ловушку - минус деньги и урон PAVLO
+                // Кликнули на ЛОВУШКУ - минус деньги и урон только PAVLO
                 gameState.portfolio = Math.max(0, gameState.portfolio - token.price);
                 gameState.pavloHP = Math.max(0, gameState.pavloHP - 10);
                 particles.push(new Particle(clickX, clickY, `-$${token.price.toLocaleString()}`, '#FF0000'));
@@ -544,7 +545,7 @@ function handleClick(e) {
                     tg.HapticFeedback.notificationOccurred('error');
                 }
             } else {
-                // Кликнули на обычный токен - плюс деньги и комбо
+                // Кликнули на ОБЫЧНЫЙ токен - плюс деньги, комбо и урон CZ
                 gameState.portfolio += token.price;
                 gameState.combo++;
                 gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
@@ -590,16 +591,16 @@ document.getElementById('continue-btn').addEventListener('click', () => {
 window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    pavloPos.y = canvas.height - 100;
+    pavloPos.y = canvas.height - 60;
     czPos.x = canvas.width - 80;
-    czPos.y = canvas.height - 100;
+    czPos.y = canvas.height - 60;
 });
 
 function startGame() {
     gameState.started = true;
-    pavloPos.y = canvas.height - 100;
+    pavloPos.y = canvas.height - 60;
     czPos.x = canvas.width - 80;
-    czPos.y = canvas.height - 100;
+    czPos.y = canvas.height - 60;
     
     tg.ready();
     updateUI();
