@@ -8,7 +8,7 @@
 body {
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #000;
+    background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1e 100%);
 }
 
 #game-container {
@@ -30,35 +30,135 @@ body {
     top: 0;
     left: 0;
     width: 100%;
-    padding: 20px;
+    padding: 15px;
     z-index: 10;
     pointer-events: none;
 }
 
 .stats {
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(10px);
     border-radius: 15px;
-    padding: 15px 20px;
+    padding: 12px 15px;
     color: #fff;
-    font-size: 16px;
-    line-height: 1.8;
+    font-size: 14px;
+    line-height: 1.6;
     border: 2px solid rgba(138, 43, 226, 0.5);
     box-shadow: 0 0 20px rgba(138, 43, 226, 0.3);
+    margin-bottom: 10px;
 }
 
 .level {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
     color: #FFD700;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
 }
 
-.stars {
+.portfolio {
+    color: #00ff88;
+    font-weight: bold;
+}
+
+.target {
     color: #fff;
 }
 
-.multiplier {
+.speed {
     color: #8A2BE2;
     font-weight: bold;
+}
+
+.pavlo-score {
+    background: rgba(139, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 12px 15px;
+    color: #fff;
+    font-size: 14px;
+    border: 2px solid rgba(255, 0, 0, 0.5);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+}
+
+.pavlo-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ff6b6b;
+    margin-bottom: 5px;
+}
+
+.pavlo-portfolio {
+    color: #fff;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b6b, #ff0000);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+#game-over, #level-up {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.game-over-content, .level-up-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 40px 30px;
+    border-radius: 25px;
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    pointer-events: all;
+}
+
+.game-over-content h1, .level-up-content h1 {
+    font-size: 32px;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.game-over-content p, .level-up-content p {
+    font-size: 18px;
+    margin: 10px 0;
+}
+
+button {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 15px 40px;
+    border-radius: 50px;
+    margin-top: 20px;
+    cursor: pointer;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s;
+}
+
+button:active {
+    transform: scale(0.95);
 }
