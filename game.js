@@ -251,7 +251,7 @@ function drawBackground() {
     }
 }
 
-// Функция для удаления белого фона
+// Функция для удаления белого фона (ОСЛАБЛЕННАЯ)
 function removeWhiteBackground(image, width, height) {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = width;
@@ -268,9 +268,9 @@ function removeWhiteBackground(image, width, height) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
-            const brightness = (r + g + b) / 3;
             
-            if (brightness > 200) {
+            // Более высокий порог - удаляет только очень белые пиксели
+            if (r > 250 && g > 250 && b > 250) {
                 data[i + 3] = 0;
             }
         }
@@ -283,36 +283,43 @@ function removeWhiteBackground(image, width, height) {
     return tempCanvas;
 }
 
-// Отрисовка HP-бара (стиль Mortal Kombat)
-function drawHealthBar(x, y, width, hp, name, isLeft) {
-    const height = 30;
-    
-    // Фон бара
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(x, y, width, height);
-    
-    // HP бар
-    const hpColor = hp > 60 ? '#00FF00' : hp > 30 ? '#FFAA00' : '#FF0000';
-    const gradient = ctx.createLinearGradient(x, y, x + width * (hp / 100), y);
-    gradient.addColorStop(0, hpColor);
-    gradient.addColorStop(1, hpColor + '88');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, y, width * (hp / 100), height);
-    
-    // Обводка
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y, width, height);
+// Отрисовка HP-бара над персонажем
+function drawHealthBarAbove(x, y, width, hp, name) {
+    const height = 20;
+    const barY = y - 80; // Над персонажем
     
     // Имя
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = isLeft ? 'left' : 'right';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
     ctx.shadowBlur = 5;
-    ctx.fillText(name, isLeft ? x : x + width, y - 5);
+    ctx.fillText(name, x, barY - 8);
     ctx.shadowBlur = 0;
+    
+    // Фон бара
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(x - width / 2, barY, width, height);
+    
+    // HP бар
+    const hpColor = hp > 60 ? '#00FF00' : hp > 30 ? '#FFAA00' : '#FF0000';
+    const gradient = ctx.createLinearGradient(x - width / 2, barY, x - width / 2 + width * (hp / 100), barY);
+    gradient.addColorStop(0, hpColor);
+    gradient.addColorStop(1, hpColor + 'AA');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x - width / 2, barY, width * (hp / 100), height);
+    
+    // Обводка
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - width / 2, barY, width, height);
+    
+    // Текст HP
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.floor(hp)}%`, x, barY + 14);
 }
 
 // Отрисовка комбо счетчика
@@ -361,6 +368,9 @@ function drawPavlo() {
         ctx.arc(pavloPos.x, pavloPos.y, 40, 0, Math.PI * 2);
         ctx.fill();
     }
+    
+    // HP-бар над персонажем
+    drawHealthBarAbove(pavloPos.x, pavloPos.y - height / 2, 100, gameState.pavloHP, 'PAVLO');
 }
 
 // Отрисовка CZ (справа внизу)
@@ -381,6 +391,9 @@ function drawCZ() {
         ctx.arc(czPos.x, czPos.y, 40, 0, Math.PI * 2);
         ctx.fill();
     }
+    
+    // HP-бар над персонажем
+    drawHealthBarAbove(czPos.x, czPos.y - height / 2, 100, gameState.czHP, 'CZ');
 }
 
 // Обновление UI
@@ -447,10 +460,6 @@ function gameLoop() {
         ctx.stroke();
     }
 
-    // HP-бары в стиле Mortal Kombat
-    drawHealthBar(20, 20, 150, gameState.pavloHP, 'PAVLO', true);
-    drawHealthBar(canvas.width - 170, 20, 150, gameState.czHP, 'CZ', false);
-    
     // Комбо счетчик
     drawCombo();
     
@@ -481,7 +490,7 @@ function gameLoop() {
             }
             
             tokens.splice(i, 1);
-            gameState.combo = 0; // Сброс комбо
+            gameState.combo = 0;
             continue;
         }
 
