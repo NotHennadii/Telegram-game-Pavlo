@@ -35,7 +35,6 @@ const images = {
     usdt: new Image()
 };
 
-// ВАЖНО: Замените эти пути на реальные пути к вашим изображениям
 images.background.src = 'background.jpg';
 images.pavlo.src = 'pavlo.png';
 images.cz.src = 'cz.png';
@@ -48,7 +47,6 @@ images.usdt.src = 'usdt.png';
 let imagesLoaded = 0;
 const totalImages = Object.keys(images).length;
 
-// Проверка загрузки изображений
 Object.values(images).forEach(img => {
     img.onload = () => {
         imagesLoaded++;
@@ -74,22 +72,66 @@ let gameState = {
     czMoney: 0,
     gameOver: false,
     paused: false,
-    started: false
+    started: false,
+    combo: 0,
+    maxCombo: 0,
+    lastClickTime: 0,
+    pavloHP: 100,
+    czHP: 100
+};
+
+// Позиции персонажей
+let pavloPos = {
+    x: 80,
+    y: canvas.height - 100,
+    size: 104
+};
+
+let czPos = {
+    x: canvas.width - 80,
+    y: canvas.height - 100,
+    size: 104
 };
 
 // Объекты игры
 let tokens = [];
-let pavloPos = {
-    x: canvas.width / 2,
-    y: 80,
-    size: 104
-};
+let particles = [];
+
+// Класс частицы для эффектов
+class Particle {
+    constructor(x, y, text, color) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.color = color;
+        this.life = 1;
+        this.speedY = -2;
+    }
+
+    update() {
+        this.y += this.speedY;
+        this.life -= 0.02;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 5;
+        ctx.fillText(this.text, this.x, this.y);
+        ctx.restore();
+    }
+}
 
 // Класс токена
 class Token {
-    constructor(lane, type) {
+    constructor(lane, type, isTrap = false) {
         this.lane = lane;
         this.type = type;
+        this.isTrap = isTrap;
         this.x = (canvas.width / LANES) * lane + (canvas.width / LANES / 2);
         this.y = -50;
         this.radius = 30;
@@ -116,6 +158,12 @@ class Token {
         // Рисуем изображение токена
         if (this.image && this.image.complete) {
             ctx.save();
+            
+            // Если ловушка - инвертируем цвета
+            if (this.isTrap) {
+                ctx.filter = 'invert(1) hue-rotate(180deg)';
+            }
+            
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
             ctx.clip();
@@ -128,15 +176,24 @@ class Token {
             );
             ctx.restore();
 
-            // Обводка
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 3;
+            // Обводка (красная для ловушек)
+            ctx.strokeStyle = this.isTrap ? '#FF0000' : '#fff';
+            ctx.lineWidth = this.isTrap ? 4 : 3;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
             ctx.stroke();
+            
+            // Значок черепа для ловушек
+            if (this.isTrap) {
+                ctx.fillStyle = '#FF0000';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('☠', this.x, this.y - this.radius - 15);
+            }
         } else {
             // Fallback
-            ctx.fillStyle = '#666';
+            ctx.fillStyle = this.isTrap ? '#8B0000' : '#666';
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
             ctx.fill();
@@ -178,7 +235,10 @@ function spawnToken() {
         random -= weights[i];
     }
 
-    tokens.push(new Token(lane, type));
+    // 20% шанс что токен - ловушка
+    const isTrap = Math.random() < 0.2;
+    
+    tokens.push(new Token(lane, type, isTrap));
 }
 
 // Отрисовка фона
@@ -191,8 +251,8 @@ function drawBackground() {
     }
 }
 
-// Функция для удаления белого фона с более гибкими параметрами
-function removeWhiteBackground(image, width, height, threshold = 240) {
+// Функция для удаления белого фона
+function removeWhiteBackground(image, width, height) {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = width;
     tempCanvas.height = height;
@@ -208,14 +268,9 @@ function removeWhiteBackground(image, width, height, threshold = 240) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
-            const alpha = data[i + 3];
+            const brightness = (r + g + b) / 3;
             
-            // Удаляем белый и светло-серый фон
-            if (r > threshold && g > threshold && b > threshold) {
-                data[i + 3] = 0;
-            }
-            // Также удаляем почти прозрачные пиксели
-            else if (alpha < 50) {
+            if (brightness > 200) {
                 data[i + 3] = 0;
             }
         }
@@ -228,61 +283,104 @@ function removeWhiteBackground(image, width, height, threshold = 240) {
     return tempCanvas;
 }
 
-// Отрисовка PAVLO (вверху слева)
+// Отрисовка HP-бара (стиль Mortal Kombat)
+function drawHealthBar(x, y, width, hp, name, isLeft) {
+    const height = 30;
+    
+    // Фон бара
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x, y, width, height);
+    
+    // HP бар
+    const hpColor = hp > 60 ? '#00FF00' : hp > 30 ? '#FFAA00' : '#FF0000';
+    const gradient = ctx.createLinearGradient(x, y, x + width * (hp / 100), y);
+    gradient.addColorStop(0, hpColor);
+    gradient.addColorStop(1, hpColor + '88');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width * (hp / 100), height);
+    
+    // Обводка
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, width, height);
+    
+    // Имя
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = isLeft ? 'left' : 'right';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 5;
+    ctx.fillText(name, isLeft ? x : x + width, y - 5);
+    ctx.shadowBlur = 0;
+}
+
+// Отрисовка комбо счетчика
+function drawCombo() {
+    if (gameState.combo > 1) {
+        const centerX = canvas.width / 2;
+        const centerY = 100;
+        
+        // Эффект пульсации
+        const scale = 1 + Math.sin(Date.now() / 100) * 0.1;
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(scale, scale);
+        
+        // Текст COMBO
+        ctx.fillStyle = '#FF0000';
+        ctx.font = 'bold 40px Arial';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
+        ctx.shadowBlur = 10;
+        ctx.strokeText(`${gameState.combo} COMBO!`, 0, 0);
+        ctx.fillText(`${gameState.combo} COMBO!`, 0, 0);
+        
+        ctx.restore();
+    }
+}
+
+// Отрисовка PAVLO (слева внизу)
 function drawPavlo() {
     const width = pavloPos.size;
     const height = pavloPos.size;
     
     if (images.pavlo.complete) {
-        const processed = removeWhiteBackground(images.pavlo, width, height, 230);
+        const processed = removeWhiteBackground(images.pavlo, width, height);
         ctx.drawImage(
             processed,
             pavloPos.x - width / 2,
             pavloPos.y - height / 2
         );
     } else {
-        // Fallback
         ctx.fillStyle = '#4169E1';
         ctx.beginPath();
         ctx.arc(pavloPos.x, pavloPos.y, 40, 0, Math.PI * 2);
         ctx.fill();
     }
-    
-    // Имя
-    ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 18px Arial';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 4;
-    ctx.fillText('PAVLO', pavloPos.x, pavloPos.y + 70);
-    ctx.shadowBlur = 0;
 }
 
-// Отрисовка CZ (внизу)
+// Отрисовка CZ (справа внизу)
 function drawCZ() {
-    const czY = canvas.height - 80;
-    const czX = canvas.width / 2;
-    const czSize = 104;
+    const width = czPos.size;
+    const height = czPos.size;
     
     if (images.cz.complete) {
-        const processed = removeWhiteBackground(images.cz, czSize, czSize, 230);
-        ctx.drawImage(processed, czX - czSize / 2, czY - czSize / 2);
+        const processed = removeWhiteBackground(images.cz, width, height);
+        ctx.drawImage(
+            processed,
+            czPos.x - width / 2,
+            czPos.y - height / 2
+        );
     } else {
-        // Fallback
         ctx.fillStyle = '#8B0000';
         ctx.beginPath();
-        ctx.arc(czX, czY, 40, 0, Math.PI * 2);
+        ctx.arc(czPos.x, czPos.y, 40, 0, Math.PI * 2);
         ctx.fill();
     }
-    
-    // Имя
-    ctx.fillStyle = '#FF4444';
-    ctx.font = 'bold 18px Arial';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 4;
-    ctx.fillText('CZ', czX, czY + 70);
-    ctx.shadowBlur = 0;
 }
 
 // Обновление UI
@@ -293,16 +391,26 @@ function updateUI() {
     document.getElementById('speed').textContent = gameState.speed.toFixed(1);
     document.getElementById('pavlo-money').textContent = Math.floor(gameState.czMoney).toLocaleString();
     
-    // Прогресс бар CZ
     const progress = (gameState.czMoney / PAVLO_LOSE_THRESHOLD) * 100;
     document.getElementById('pavlo-progress').style.width = `${Math.min(progress, 100)}%`;
 }
 
 // Проверка победы/поражения
 function checkWinLose() {
-    if (gameState.czMoney >= PAVLO_LOSE_THRESHOLD) {
+    if (gameState.czHP <= 0 || gameState.czMoney >= PAVLO_LOSE_THRESHOLD) {
         gameState.gameOver = true;
         document.getElementById('final-pavlo').textContent = Math.floor(gameState.czMoney).toLocaleString();
+        document.getElementById('final-portfolio').textContent = Math.floor(gameState.portfolio).toLocaleString();
+        document.getElementById('game-over').classList.remove('hidden');
+        
+        if (tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+    
+    if (gameState.pavloHP <= 0) {
+        gameState.gameOver = true;
+        document.getElementById('final-pavlo').textContent = 'PAVLO ПРОИГРАЛ';
         document.getElementById('final-portfolio').textContent = Math.floor(gameState.portfolio).toLocaleString();
         document.getElementById('game-over').classList.remove('hidden');
         
@@ -326,10 +434,9 @@ function checkWinLose() {
 function gameLoop() {
     if (gameState.gameOver) return;
 
-    // Фон
     drawBackground();
 
-    // Фоновая сетка (линии)
+    // Фоновая сетка
     ctx.strokeStyle = 'rgba(138, 43, 226, 0.15)';
     ctx.lineWidth = 1;
     for (let i = 1; i < LANES; i++) {
@@ -340,6 +447,13 @@ function gameLoop() {
         ctx.stroke();
     }
 
+    // HP-бары в стиле Mortal Kombat
+    drawHealthBar(20, 20, 150, gameState.pavloHP, 'PAVLO', true);
+    drawHealthBar(canvas.width - 170, 20, 150, gameState.czHP, 'CZ', false);
+    
+    // Комбо счетчик
+    drawCombo();
+    
     drawPavlo();
     drawCZ();
 
@@ -353,22 +467,42 @@ function gameLoop() {
         
         token.draw();
 
-        // Если токен упал вниз - достается CZ
+        // Если токен упал вниз
         if (token.y >= canvas.height - 100 && !token.caught) {
             token.caught = true;
-            gameState.czMoney += token.price;
-            tokens.splice(i, 1);
             
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.notificationOccurred('warning');
+            if (token.isTrap) {
+                // Ловушка упала - CZ получает урон
+                gameState.czHP = Math.max(0, gameState.czHP - 5);
+            } else {
+                // Обычный токен упал - CZ получает деньги, PAVLO урон
+                gameState.czMoney += token.price;
+                gameState.pavloHP = Math.max(0, gameState.pavloHP - 2);
             }
+            
+            tokens.splice(i, 1);
+            gameState.combo = 0; // Сброс комбо
             continue;
         }
 
-        // Удаление вышедших за экран
         if (token.y > canvas.height + 50) {
             tokens.splice(i, 1);
         }
+    }
+
+    // Обновление частиц
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+
+    // Сброс комбо если долго не кликали
+    if (Date.now() - gameState.lastClickTime > 2000) {
+        gameState.combo = 0;
     }
 
     updateUI();
@@ -376,7 +510,7 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Обработка кликов/тапов по токенам
+// Обработка кликов
 function handleClick(e) {
     if (gameState.gameOver || gameState.paused) return;
     
@@ -384,45 +518,52 @@ function handleClick(e) {
     const clickX = (e.clientX || e.touches[0].clientX) - rect.left;
     const clickY = (e.clientY || e.touches[0].clientY) - rect.top;
     
-    // Проверяем попадание по токенам
     for (let i = tokens.length - 1; i >= 0; i--) {
         const token = tokens[i];
         
         if (!token.caught && token.isClicked(clickX, clickY)) {
             token.caught = true;
-            gameState.portfolio += token.price;
-            tokens.splice(i, 1);
             
-            // Визуальный эффект
-            createClickEffect(clickX, clickY, token.type);
-            
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
+            if (token.isTrap) {
+                // Кликнули на ловушку - минус деньги и урон PAVLO
+                gameState.portfolio = Math.max(0, gameState.portfolio - token.price);
+                gameState.pavloHP = Math.max(0, gameState.pavloHP - 10);
+                particles.push(new Particle(clickX, clickY, `-$${token.price.toLocaleString()}`, '#FF0000'));
+                gameState.combo = 0;
+                
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.notificationOccurred('error');
+                }
+            } else {
+                // Кликнули на обычный токен - плюс деньги и комбо
+                gameState.portfolio += token.price;
+                gameState.combo++;
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                gameState.lastClickTime = Date.now();
+                
+                // Урон CZ от комбо
+                const comboDamage = Math.min(gameState.combo * 0.5, 5);
+                gameState.czHP = Math.max(0, gameState.czHP - comboDamage);
+                
+                particles.push(new Particle(clickX, clickY, `+$${token.price.toLocaleString()}`, '#00FF00'));
+                
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.impactOccurred('light');
+                }
             }
-            break; // Только один токен за клик
+            
+            tokens.splice(i, 1);
+            break;
         }
     }
 }
 
-// Эффект при клике
-function createClickEffect(x, y, type) {
-    ctx.save();
-    ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 20px Arial';
-    ctx.textAlign = 'center';
-    ctx.globalAlpha = 0.8;
-    ctx.fillText('+$', x, y - 10);
-    ctx.restore();
-}
-
-// События
 canvas.addEventListener('click', handleClick);
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     handleClick(e);
 });
 
-// Кнопки
 document.getElementById('restart-btn').addEventListener('click', () => {
     location.reload();
 });
@@ -432,23 +573,29 @@ document.getElementById('continue-btn').addEventListener('click', () => {
     gameState.targetMoney *= 2;
     gameState.speed += 0.5;
     gameState.paused = false;
+    gameState.pavloHP = 100;
+    gameState.czHP = 100;
     document.getElementById('level-up').classList.add('hidden');
 });
 
-// Адаптация при изменении размера
 window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    pavloPos.y = canvas.height - 100;
+    czPos.x = canvas.width - 80;
+    czPos.y = canvas.height - 100;
 });
 
-// Запуск игры
 function startGame() {
     gameState.started = true;
+    pavloPos.y = canvas.height - 100;
+    czPos.x = canvas.width - 80;
+    czPos.y = canvas.height - 100;
+    
     tg.ready();
     updateUI();
     gameLoop();
     
-    // Генерация токенов с интервалом
     setInterval(() => {
         if (!gameState.gameOver && !gameState.paused && gameState.started) {
             spawnToken();
