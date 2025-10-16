@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Galaxy Clicker</title>
+    <title>Crypto Catcher</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -12,11 +12,34 @@
         <div id="ui">
             <div class="stats">
                 <div class="level">Уровень: <span id="level">1</span></div>
-                <div class="stars">⭐ Звезд: <span id="stars">0</span>/<span id="required">100</span></div>
-                <div class="multiplier">Множитель: x<span id="multiplier">1</span></div>
+                <div class="portfolio">💰 Портфель: $<span id="portfolio">0</span></div>
+                <div class="target">🎯 Цель: $<span id="target">1,000,000</span></div>
+                <div class="speed">⚡ Скорость: x<span id="speed">1</span></div>
+            </div>
+            <div class="pavlo-score">
+                <div class="pavlo-name">PAVLO</div>
+                <div class="pavlo-portfolio">$<span id="pavlo-money">0</span> / $200,000</div>
+                <div class="progress-bar">
+                    <div id="pavlo-progress" class="progress-fill"></div>
+                </div>
             </div>
         </div>
         <canvas id="gameCanvas"></canvas>
+        <div id="game-over" class="hidden">
+            <div class="game-over-content">
+                <h1>😱 PAVLO ПОБЕДИЛ!</h1>
+                <p>Он собрал $<span id="final-pavlo">0</span></p>
+                <p>Ваш портфель: $<span id="final-portfolio">0</span></p>
+                <button id="restart-btn">🔄 Начать заново</button>
+            </div>
+        </div>
+        <div id="level-up" class="hidden">
+            <div class="level-up-content">
+                <h1>🎉 УРОВЕНЬ ПРОЙДЕН!</h1>
+                <p>Портфель: $<span id="level-portfolio">0</span></p>
+                <button id="continue-btn">➡️ Продолжить</button>
+            </div>
+        </div>
     </div>
     <script src="game.js"></script>
 </body>
