@@ -12,7 +12,6 @@ canvas.height = window.innerHeight;
 
 // Константы игры
 const LANES = 12;
-const CATCH_LINE = canvas.height * 0.85; // 15% от нижней точки
 const PAVLO_LOSE_THRESHOLD = 200000;
 
 // Цены токенов
@@ -24,14 +23,48 @@ const TOKEN_PRICES = {
     USDT: 1
 };
 
-// Цвета токенов
-const TOKEN_COLORS = {
-    BTC: '#F7931A',
-    ETH: '#627EEA',
-    SOL: '#14F195',
-    USDC: '#2775CA',
-    USDT: '#26A17B'
+// Загрузка изображений
+const images = {
+    background: new Image(),
+    pavlo: new Image(),
+    cz: new Image(),
+    btc: new Image(),
+    eth: new Image(),
+    sol: new Image(),
+    usdc: new Image(),
+    usdt: new Image()
 };
+
+// ВАЖНО: Замените эти пути на реальные пути к вашим изображениям
+// После загрузки на GitHub Pages
+images.background.src = 'background.jpg'; // Ваш фон космоса
+images.pavlo.src = 'pavlo.png'; // Ваш персонаж PAVLO (тритон)
+images.cz.src = 'cz.png'; // Ваш персонаж CZ (враг)
+images.btc.src = 'btc.png'; // Bitcoin logo
+images.eth.src = 'eth.png'; // Ethereum logo
+images.sol.src = 'sol.png'; // Solana logo
+images.usdc.src = 'usdc.png'; // USDC logo
+images.usdt.src = 'usdt.png'; // USDT logo
+
+let imagesLoaded = 0;
+const totalImages = Object.keys(images).length;
+
+// Проверка загрузки изображений
+Object.values(images).forEach(img => {
+    img.onload = () => {
+        imagesLoaded++;
+        if (imagesLoaded === totalImages) {
+            startGame();
+        }
+    };
+    img.onerror = () => {
+        console.error('Failed to load image:', img.src);
+        imagesLoaded++;
+        if (imagesLoaded === totalImages) {
+            startGame();
+        }
+    };
+});
 
 // Игровое состояние
 let gameState = {
@@ -39,16 +72,17 @@ let gameState = {
     portfolio: 0,
     targetMoney: 1000000,
     speed: 1,
-    pavloMoney: 0,
+    czMoney: 0,
     gameOver: false,
-    paused: false
+    paused: false,
+    started: false
 };
 
 // Объекты игры
 let tokens = [];
-let basket = {
+let pavlo = {
     x: canvas.width / 2,
-    y: canvas.height - 80,
+    y: canvas.height - 100,
     width: 80,
     height: 80,
     speed: 15
@@ -61,11 +95,11 @@ class Token {
         this.type = type;
         this.x = (canvas.width / LANES) * lane + (canvas.width / LANES / 2);
         this.y = -50;
-        this.radius = 25;
+        this.radius = 30;
         this.price = TOKEN_PRICES[type];
-        this.color = TOKEN_COLORS[type];
         this.speed = 2 * gameState.speed;
         this.caught = false;
+        this.image = images[type.toLowerCase()];
     }
 
     update() {
@@ -82,41 +116,58 @@ class Token {
         ctx.fill();
         ctx.restore();
 
-        // Токен
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
+        // Рисуем изображение токена
+        if (this.image && this.image.complete) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(
+                this.image,
+                this.x - this.radius,
+                this.y - this.radius,
+                this.radius * 2,
+                this.radius * 2
+            );
+            ctx.restore();
 
-        // Обводка
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        // Текст
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.type, this.x, this.y);
+            // Обводка
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Fallback если изображение не загрузилось
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.type, this.x, this.y);
+        }
     }
 
     checkCollision() {
         const distance = Math.sqrt(
-            (this.x - basket.x) ** 2 + 
-            (this.y - basket.y) ** 2
+            (this.x - pavlo.x) ** 2 + 
+            (this.y - pavlo.y) ** 2
         );
-        return distance < this.radius + basket.width / 2;
+        return distance < this.radius + pavlo.width / 2;
     }
 }
 
 // Генерация токенов
 function spawnToken() {
-    if (gameState.gameOver || gameState.paused) return;
+    if (gameState.gameOver || gameState.paused || !gameState.started) return;
 
     const lane = Math.floor(Math.random() * LANES);
     const types = ['BTC', 'ETH', 'SOL', 'USDC', 'USDT'];
-    const weights = [1, 3, 5, 20, 20]; // Редкость токенов
+    const weights = [1, 3, 5, 20, 20];
     
     let totalWeight = weights.reduce((a, b) => a + b, 0);
     let random = Math.random() * totalWeight;
@@ -133,61 +184,66 @@ function spawnToken() {
     tokens.push(new Token(lane, type));
 }
 
-// Отрисовка корзины (Тритон)
-function drawBasket() {
-    // Простое представление Тритона
-    ctx.save();
-    
-    // Тело
-    ctx.fillStyle = '#4169E1';
-    ctx.beginPath();
-    ctx.arc(basket.x, basket.y - 20, 30, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Голова
-    ctx.fillStyle = '#5B9BD5';
-    ctx.beginPath();
-    ctx.arc(basket.x, basket.y - 40, 25, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Рот (открытый)
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.arc(basket.x, basket.y - 35, 12, 0, Math.PI);
-    ctx.fill();
-    
-    // Глаза
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(basket.x - 10, basket.y - 45, 5, 0, Math.PI * 2);
-    ctx.arc(basket.x + 10, basket.y - 45, 5, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.arc(basket.x - 10, basket.y - 45, 2, 0, Math.PI * 2);
-    ctx.arc(basket.x + 10, basket.y - 45, 2, 0, Math.PI * 2);
-    ctx.fill();
+// Отрисовка фона
+function drawBackground() {
+    if (images.background.complete) {
+        ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = '#0f0f1e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+// Отрисовка PAVLO (управляемый персонаж)
+function drawPavlo() {
+    if (images.pavlo.complete) {
+        ctx.drawImage(
+            images.pavlo,
+            pavlo.x - pavlo.width / 2,
+            pavlo.y - pavlo.height / 2,
+            pavlo.width,
+            pavlo.height
+        );
+    } else {
+        // Fallback
+        ctx.fillStyle = '#4169E1';
+        ctx.beginPath();
+        ctx.arc(pavlo.x, pavlo.y - 20, 30, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#5B9BD5';
+        ctx.beginPath();
+        ctx.arc(pavlo.x, pavlo.y - 40, 25, 0, Math.PI * 2);
+        ctx.fill();
+    }
     
     // Имя
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 14px Arial';
+    ctx.font = 'bold 16px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('YOU', basket.x, basket.y + 10);
-    
-    ctx.restore();
+    ctx.fillText('PAVLO', pavlo.x, pavlo.y + 50);
 }
 
-// Отрисовка линии поимки
-function drawCatchLine() {
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 5]);
-    ctx.beginPath();
-    ctx.moveTo(0, CATCH_LINE);
-    ctx.lineTo(canvas.width, CATCH_LINE);
-    ctx.stroke();
-    ctx.setLineDash([]);
+// Отрисовка CZ (внизу экрана)
+function drawCZ() {
+    const czY = canvas.height - 40;
+    const czX = canvas.width / 2;
+    
+    if (images.cz.complete) {
+        ctx.drawImage(images.cz, czX - 40, czY - 40, 80, 80);
+    } else {
+        // Fallback
+        ctx.fillStyle = '#8B0000';
+        ctx.beginPath();
+        ctx.arc(czX, czY, 30, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Имя
+    ctx.fillStyle = '#FF4444';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('CZ', czX, czY + 50);
 }
 
 // Обновление UI
@@ -196,18 +252,18 @@ function updateUI() {
     document.getElementById('portfolio').textContent = Math.floor(gameState.portfolio).toLocaleString();
     document.getElementById('target').textContent = gameState.targetMoney.toLocaleString();
     document.getElementById('speed').textContent = gameState.speed;
-    document.getElementById('pavlo-money').textContent = Math.floor(gameState.pavloMoney).toLocaleString();
+    document.getElementById('pavlo-money').textContent = Math.floor(gameState.czMoney).toLocaleString();
     
-    // Прогресс бар Pavlo
-    const progress = (gameState.pavloMoney / PAVLO_LOSE_THRESHOLD) * 100;
+    // Прогресс бар CZ
+    const progress = (gameState.czMoney / PAVLO_LOSE_THRESHOLD) * 100;
     document.getElementById('pavlo-progress').style.width = `${Math.min(progress, 100)}%`;
 }
 
 // Проверка победы/поражения
 function checkWinLose() {
-    if (gameState.pavloMoney >= PAVLO_LOSE_THRESHOLD) {
+    if (gameState.czMoney >= PAVLO_LOSE_THRESHOLD) {
         gameState.gameOver = true;
-        document.getElementById('final-pavlo').textContent = Math.floor(gameState.pavloMoney).toLocaleString();
+        document.getElementById('final-pavlo').textContent = Math.floor(gameState.czMoney).toLocaleString();
         document.getElementById('final-portfolio').textContent = Math.floor(gameState.portfolio).toLocaleString();
         document.getElementById('game-over').classList.remove('hidden');
         
@@ -231,9 +287,8 @@ function checkWinLose() {
 function gameLoop() {
     if (gameState.gameOver) return;
 
-    // Очистка
-    ctx.fillStyle = '#0f0f1e';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Фон
+    drawBackground();
 
     // Фоновая сетка (линии)
     ctx.strokeStyle = 'rgba(138, 43, 226, 0.2)';
@@ -246,8 +301,8 @@ function gameLoop() {
         ctx.stroke();
     }
 
-    drawCatchLine();
-    drawBasket();
+    drawCZ();
+    drawPavlo();
 
     // Обновление токенов
     for (let i = tokens.length - 1; i >= 0; i--) {
@@ -259,7 +314,7 @@ function gameLoop() {
         
         token.draw();
 
-        // Проверка поимки игроком
+        // Проверка поимки PAVLO (игроком)
         if (token.checkCollision() && !token.caught) {
             token.caught = true;
             gameState.portfolio += token.price;
@@ -271,10 +326,10 @@ function gameLoop() {
             continue;
         }
 
-        // Проверка достижения линии PAVLO
-        if (token.y >= CATCH_LINE && !token.caught) {
+        // Если токен упал вниз - достается CZ
+        if (token.y >= canvas.height - 80 && !token.caught) {
             token.caught = true;
-            gameState.pavloMoney += token.price;
+            gameState.czMoney += token.price;
             tokens.splice(i, 1);
             continue;
         }
@@ -291,21 +346,19 @@ function gameLoop() {
 }
 
 // Управление
-let touchStartX = 0;
-
 canvas.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
+    e.preventDefault();
 });
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     const touchX = e.touches[0].clientX;
-    basket.x = Math.max(40, Math.min(canvas.width - 40, touchX));
+    pavlo.x = Math.max(40, Math.min(canvas.width - 40, touchX));
 });
 
 canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
-    basket.x = Math.max(40, Math.min(canvas.width - 40, e.clientX - rect.left));
+    pavlo.x = Math.max(40, Math.min(canvas.width - 40, e.clientX - rect.left));
 });
 
 // Кнопки
@@ -318,7 +371,6 @@ document.getElementById('continue-btn').addEventListener('click', () => {
     gameState.targetMoney *= 2;
     gameState.speed += 0.5;
     gameState.paused = false;
-    document.getElementById('level-up').classList.remove('hidden');
     document.getElementById('level-up').classList.add('hidden');
 });
 
@@ -329,13 +381,16 @@ window.addEventListener('resize', () => {
 });
 
 // Запуск игры
-tg.ready();
-updateUI();
-gameLoop();
-
-// Генерация токенов с интервалом
-setInterval(() => {
-    if (!gameState.gameOver && !gameState.paused) {
-        spawnToken();
-    }
-}, 1500 / gameState.speed);
+function startGame() {
+    gameState.started = true;
+    tg.ready();
+    updateUI();
+    gameLoop();
+    
+    // Генерация токенов с интервалом
+    setInterval(() => {
+        if (!gameState.gameOver && !gameState.paused && gameState.started) {
+            spawnToken();
+        }
+    }, 1500 / gameState.speed);
+}
