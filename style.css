@@ -79,11 +79,8 @@ body {
     box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
 }
 
-.pavlo-name {
-    font-size: 18px;
-    font-weight: bold;
-    color: #ff6b6b;
-    margin-bottom: 5px;
+.pavlo-name::before {
+    content: 'CZ 😈 ';
 }
 
 .pavlo-portfolio {
@@ -162,3 +159,4 @@ button {
 button:active {
     transform: scale(0.95);
 }
+
