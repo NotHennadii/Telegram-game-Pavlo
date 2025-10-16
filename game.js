@@ -36,15 +36,14 @@ const images = {
 };
 
 // ВАЖНО: Замените эти пути на реальные пути к вашим изображениям
-// После загрузки на GitHub Pages
-images.background.src = 'background.jpg'; // Ваш фон космоса
-images.pavlo.src = 'pavlo.png'; // Ваш персонаж PAVLO (тритон)
-images.cz.src = 'cz.png'; // Ваш персонаж CZ (враг)
-images.btc.src = 'btc.png'; // Bitcoin logo
-images.eth.src = 'eth.png'; // Ethereum logo
-images.sol.src = 'sol.png'; // Solana logo
-images.usdc.src = 'usdc.png'; // USDC logo
-images.usdt.src = 'usdt.png'; // USDT logo
+images.background.src = 'background.jpg';
+images.pavlo.src = 'pavlo.png';
+images.cz.src = 'cz.png';
+images.btc.src = 'btc.png';
+images.eth.src = 'eth.png';
+images.sol.src = 'sol.png';
+images.usdc.src = 'usdc.png';
+images.usdt.src = 'usdt.png';
 
 let imagesLoaded = 0;
 const totalImages = Object.keys(images).length;
@@ -82,7 +81,7 @@ let gameState = {
 let tokens = [];
 let pavlo = {
     x: canvas.width / 2,
-    y: canvas.height - 100,
+    y: canvas.height - 120,
     width: 80,
     height: 80,
     speed: 15
@@ -138,7 +137,7 @@ class Token {
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
             ctx.stroke();
         } else {
-            // Fallback если изображение не загрузилось
+            // Fallback
             ctx.fillStyle = '#666';
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -196,13 +195,43 @@ function drawBackground() {
 
 // Отрисовка PAVLO (управляемый персонаж)
 function drawPavlo() {
+    const width = pavlo.width * 1.3;
+    const height = pavlo.height * 1.3;
+    
     if (images.pavlo.complete) {
+        // Создаем временный canvas для обработки изображения
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Рисуем изображение на временном canvas
+        tempCtx.drawImage(images.pavlo, 0, 0, width, height);
+        
+        // Получаем данные пикселей
+        const imageData = tempCtx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        
+        // Удаляем белый фон (делаем прозрачным)
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Если пиксель белый или близок к белому - делаем прозрачным
+            if (r > 240 && g > 240 && b > 240) {
+                data[i + 3] = 0;
+            }
+        }
+        
+        // Возвращаем обработанные данные
+        tempCtx.putImageData(imageData, 0, 0);
+        
+        // Рисуем на основном canvas
         ctx.drawImage(
-            images.pavlo,
-            pavlo.x - pavlo.width / 2,
-            pavlo.y - pavlo.height / 2,
-            pavlo.width,
-            pavlo.height
+            tempCanvas,
+            pavlo.x - width / 2,
+            pavlo.y - height / 2
         );
     } else {
         // Fallback
@@ -219,31 +248,61 @@ function drawPavlo() {
     
     // Имя
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = 'bold 18px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('PAVLO', pavlo.x, pavlo.y + 50);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText('PAVLO', pavlo.x, pavlo.y + 60);
+    ctx.shadowBlur = 0;
 }
 
 // Отрисовка CZ (внизу экрана)
 function drawCZ() {
-    const czY = canvas.height - 40;
+    const czY = canvas.height - 50;
     const czX = canvas.width / 2;
+    const czSize = 104; // Увеличено на 30%
     
     if (images.cz.complete) {
-        ctx.drawImage(images.cz, czX - 40, czY - 40, 80, 80);
+        // Создаем временный canvas для обработки изображения
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = czSize;
+        tempCanvas.height = czSize;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        tempCtx.drawImage(images.cz, 0, 0, czSize, czSize);
+        
+        const imageData = tempCtx.getImageData(0, 0, czSize, czSize);
+        const data = imageData.data;
+        
+        // Удаляем белый фон
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            if (r > 240 && g > 240 && b > 240) {
+                data[i + 3] = 0;
+            }
+        }
+        
+        tempCtx.putImageData(imageData, 0, 0);
+        ctx.drawImage(tempCanvas, czX - czSize / 2, czY - czSize / 2);
     } else {
         // Fallback
         ctx.fillStyle = '#8B0000';
         ctx.beginPath();
-        ctx.arc(czX, czY, 30, 0, Math.PI * 2);
+        ctx.arc(czX, czY, 40, 0, Math.PI * 2);
         ctx.fill();
     }
     
     // Имя
     ctx.fillStyle = '#FF4444';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = 'bold 18px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('CZ', czX, czY + 50);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText('CZ', czX, czY + 60);
+    ctx.shadowBlur = 0;
 }
 
 // Обновление UI
